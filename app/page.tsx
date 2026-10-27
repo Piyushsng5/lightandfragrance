@@ -43,7 +43,7 @@ const products = [
   },
   {
     name: "Lotus Bud Candle",
-    price: "₹599",
+    price: "₹129",
     image: "/images/06_Lotus_Bud_Candle.jpg",
     tag: "New",
   },
@@ -73,7 +73,7 @@ const products = [
   },
   {
     name: "Botanical Bloom Glow",
-    price: "₹299",
+    price: "₹349",
     image: "/images/1.1_Botanical_Bloom_Glow.jpg",
     tag: "Botanical",
   },
@@ -84,7 +84,7 @@ const products = [
     tag: "Artisan",
   },
   {
-    name: "Rose Whisper Candle",
+    name: "Rose Whisper Sachet",
     price: "₹100",
     image: "/images/1.3_Rose_Whisper_Candle.jpg",
     tag: "Floral",
@@ -139,7 +139,7 @@ const products = [
   },
   {
     name: "Caramel Cake Delight",
-    price: "₹399",
+    price: "₹250",
     image: "/images/3.2_Caramel_Cake_Delight.jpg",
     tag: "Dessert",
   },
@@ -157,7 +157,7 @@ const products = [
   },
   {
     name: "Ocean Breeze Gel Candle",
-    price: "₹799",
+    price: "₹149",
     image: "/images/3.5_Ocean_Breeze_Gel_Candle.jpg",
     tag: "Oceanic",
   },
