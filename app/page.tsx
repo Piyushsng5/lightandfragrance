@@ -2,7 +2,16 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+
+const supabase = {
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        order: async () => ({ data: [], error: null }),
+      }),
+    }),
+  }),
+} as any;
 
 const products = [
   {
@@ -163,6 +172,63 @@ const products = [
   },
 ];
 
+const CATEGORIES = ["Floral", "Gel", "Pillar", "Statement", "Fragrance"] as const;
+type Category = (typeof CATEGORIES)[number];
+
+const categoryByName: Record<string, Category> = {
+  "Heart-Shaped Rose Bouquet Candle": "Floral",
+  "Sculpted Rose Tower Candle": "Floral",
+  "Full Bloom Peony Candle": "Floral",
+  "Lotus Bud Candle": "Floral",
+  "Botanical Bloom Glow": "Floral",
+  "Rose Whisper Sachet": "Floral",
+  "Crimson Rose Sculpture": "Floral",
+  "Blooming Peony Candle": "Floral",
+  "Ocean Wave Gel Cloud Candle": "Gel",
+  "Ocean Breeze Gel Candle": "Gel",
+  "Classic Mauve Pillar Candle": "Pillar",
+  "Amber Peace Pillar": "Pillar",
+  "Ivory Dream Pillars": "Pillar",
+  "Ribbed Cone Tree Candles": "Pillar",
+  "Blush Ribbed Elegance": "Pillar",
+  "Rosewater Layers Candle": "Pillar",
+  "Diet Coke Candle": "Statement",
+  "Ethnic Mosaic Votive Candle": "Statement",
+  "Serene Veiled Maiden Candle": "Statement",
+  "Serenity Buddha Glow": "Statement",
+  "Golden Heirloom Candle": "Statement",
+  "Purple Rain": "Statement",
+  "Velvet Heartlight Candle": "Statement",
+  "Pastel Lavender Container Candle": "Fragrance",
+  "Sunlit Citrus Glow": "Fragrance",
+  "Caramel Cake Delight": "Fragrance",
+};
+
+// second photo shown on hover (add more here as you shoot them)
+const hoverByName: Record<string, string> = {
+  "Diet Coke Candle": "/images/diet-coke-2.jpg",
+  "Ethnic Mosaic Votive Candle": "/images/ethnic mosaic votive 1.jpg",
+  "Serene Veiled Maiden Candle": "/images/01_Serene_Veiled_Maiden_Bust_Candle.jpg",
+  "Ocean Wave Gel Cloud Candle": "/images/ocean_1.jpg",
+};
+
+const catalog = products.map((p) => ({
+  ...p,
+  category: (categoryByName[p.name] ?? "Statement") as Category,
+  hover: hoverByName[p.name] as string | undefined,
+}));
+
+const INITIAL_COUNT = 8;
+
+const SORTS = [
+  ["featured", "Featured"],
+  ["price-asc", "Price: low to high"],
+  ["price-desc", "Price: high to low"],
+  ["name", "Name: A–Z"],
+] as const;
+type SortKey = (typeof SORTS)[number][0];
+const priceOf = (price: string) => Number(price.replace(/[₹,]/g, ""));
+
 type Product = (typeof products)[number];
 
 type ProductReview = {
@@ -222,7 +288,9 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
-  const [collectionPage, setCollectionPage] = useState(1);
+  const [activeCategory, setActiveCategory] = useState<"All" | Category>("All");
+  const [sort, setSort] = useState<SortKey>("featured");
+  const [showAll, setShowAll] = useState(false);
   const [selectedProduct, setSelectedProduct] =
     useState<Product | null>(null);
   const [activeProductPhoto, setActiveProductPhoto] = useState(0);
@@ -262,7 +330,7 @@ export default function Home() {
 
     setSubmittedReviews((previous) => ({
       ...previous,
-      [productName]: (data ?? []).map((review) => ({
+      [productName]: (data ?? []).map((review: { customer_name: any; rating: any; comment: any; }) => ({
         name: review.customer_name,
         rating: review.rating,
         comment: review.comment,
@@ -277,6 +345,50 @@ export default function Home() {
   };
 }, [selectedProduct?.name]);
 
+
+  const visibleProducts = catalog
+    .filter((p) => activeCategory === "All" || p.category === activeCategory)
+    .sort((a, b) =>
+      sort === "price-asc"
+        ? priceOf(a.price) - priceOf(b.price)
+        : sort === "price-desc"
+          ? priceOf(b.price) - priceOf(a.price)
+          : sort === "name"
+            ? a.name.localeCompare(b.name)
+            : 0
+    );
+
+  const limited = !showAll && activeCategory === "All";
+  const shownProducts = limited
+    ? visibleProducts.slice(0, INITIAL_COUNT)
+    : visibleProducts;
+
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>("main > section, footer");
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        }),
+      { threshold: 0.08 }
+    );
+    els.forEach((el) => {
+      el.setAttribute("data-reveal", "");
+      io.observe(el);
+    });
+    return () => io.disconnect();
+  }, []);
+
+  const shopCategory = (category: "All" | Category) => {
+    setActiveCategory(category);
+    setMobileMenuOpen(false);
+    document
+      .getElementById("shop")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const cartCount = cart.reduce(
     (total, item) => total + item.quantity,
@@ -326,13 +438,6 @@ export default function Home() {
     setProductQuantity(1);
   };
 
-  const goToPage = (page: number) => {
-    setCollectionPage(page);
-    document
-      .getElementById("shop")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const placeWhatsAppOrder = () => {
     if (cart.length === 0) return;
 
@@ -363,6 +468,11 @@ export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#fff9f1] text-[#2d1b2e]">
       
+      {/* ANNOUNCEMENT BAR */}
+      <div className="bg-[#2d1b2e] px-4 py-2 text-center text-[10px] font-medium uppercase tracking-[0.22em] text-[#f7e9df] sm:text-[11px]">
+        Handcrafted in small batches · Order easily on WhatsApp
+      </div>
+
       {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-[#eadbd0] bg-[#fff9f1]/95 backdrop-blur-md">
         <div className="relative mx-auto flex h-[68px] max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-8">
@@ -396,19 +506,52 @@ export default function Home() {
           </a>
 
           {/* DESKTOP NAVIGATION */}
-          <nav className="hidden items-center gap-7 text-sm lg:flex">
+          <nav className="hidden h-full items-center gap-8 text-sm lg:flex">
+            <a href="#home" className="py-2 transition-colors hover:text-[#d85c7a]">Home</a>
+
+            {/* SHOP MEGA MENU */}
+            <div className="group flex h-full items-center">
+              <a
+                href="#shop"
+                onClick={() => shopCategory("All")}
+                className="flex items-center gap-1 py-2 transition-colors group-hover:text-[#d85c7a] group-focus-within:text-[#d85c7a]"
+              >
+                Shop
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 transition-transform duration-300 group-hover:rotate-180" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </a>
+              <div className="invisible absolute left-0 right-0 top-full translate-y-2 border border-[#eadbd0] bg-[#fff9f1] p-6 opacity-0 shadow-xl transition-all duration-300 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                <div className="grid grid-cols-5 gap-5">
+                  {CATEGORIES.map((category) => {
+                    const sample = catalog.find((p) => p.category === category)!;
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => shopCategory(category)}
+                        className="group/item text-left"
+                      >
+                        <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-[#f3e9df]">
+                          <Image src={sample.image} alt="" fill sizes="200px" className="object-cover transition duration-500 group-hover/item:scale-105" />
+                        </div>
+                        <p className="mt-2 font-serif text-lg group-hover/item:text-[#d85c7a]">{category}</p>
+                        <p className="text-xs text-[#8c6b5d]">
+                          {catalog.filter((p) => p.category === category).length} candles
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             {[
-              ["Home", "#home"],
-              ["Shop", "#shop"],
               ["Collections", "#collections"],
               ["Gifting", "#gifting"],
               ["Our Story", "#story"],
             ].map(([label, href]) => (
-              <a
-                key={label}
-                href={href}
-                className="relative py-2 transition-colors duration-200 hover:text-[#d85c7a]"
-              >
+              <a key={label} href={href} className="py-2 transition-colors hover:text-[#d85c7a]">
                 {label}
               </a>
             ))}
@@ -516,6 +659,22 @@ export default function Home() {
                   <span className="text-[#c49a8b]" aria-hidden="true">↗</span>
                 </a>
               ))}
+              <p className="pb-2 pt-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d85c7a]">
+                Shop by category
+              </p>
+              <div className="flex flex-wrap gap-2 pb-4">
+                {CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    tabIndex={mobileMenuOpen ? 0 : -1}
+                    onClick={() => shopCategory(category)}
+                    className="rounded-full border border-[#d9c7bb] bg-white px-4 py-2 text-xs font-medium"
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
             </div>
           </nav>
         </div>
@@ -710,10 +869,46 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-6 sm:gap-y-8 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {products
-              .slice((collectionPage - 1) * 4, collectionPage * 4)
-              .map((product) => {
+          {/* FILTER + SORT */}
+          <div className="mb-8 flex flex-col gap-4 border-y border-[#eadbd0] py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
+              {(["All", ...CATEGORIES] as const).map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setActiveCategory(category)}
+                  aria-pressed={activeCategory === category}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold transition sm:text-sm ${
+                    activeCategory === category
+                      ? "border-[#2d1b2e] bg-[#2d1b2e] text-white"
+                      : "border-[#d9c7bb] bg-white hover:border-[#d85c7a] hover:text-[#d85c7a]"
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm sm:justify-end">
+              <span className="text-xs text-[#8c6b5d]">
+                Showing {shownProducts.length} of {visibleProducts.length}
+              </span>
+              <label className="flex items-center gap-2">
+                <span className="sr-only">Sort by</span>
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="rounded-full border border-[#d9c7bb] bg-white px-4 py-2 text-xs font-medium sm:text-sm"
+                >
+                  {SORTS.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-6 sm:gap-y-8 md:grid-cols-3 lg:grid-cols-4">
+            {shownProducts.map((product) => {
                 const quantity =
                   cart.find((item) => item.name === product.name)
                     ?.quantity ?? 0;
@@ -743,8 +938,21 @@ export default function Home() {
                         alt={product.name}
                         fill
                         sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                        className="object-cover transition duration-500 group-hover:scale-105"
+                        className={`object-cover transition duration-700 ${
+                          product.hover
+                            ? "group-hover:opacity-0"
+                            : "group-hover:scale-105"
+                        }`}
                       />
+                      {product.hover && (
+                        <Image
+                          src={product.hover}
+                          alt=""
+                          fill
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                          className="object-cover opacity-0 transition duration-700 group-hover:opacity-100"
+                        />
+                      )}
 
                       <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider sm:left-3 sm:top-3 sm:text-[10px]">
                         {product.tag}
@@ -815,36 +1023,21 @@ export default function Home() {
               })}
           </div>
 
-          {/* PAGE NUMBERS */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2 sm:mt-12 sm:gap-3">
-            {Array.from(
-              { length: Math.ceil(products.length / 4) },
-              (_, index) => index + 1
-            ).map((page) => (
+          {activeCategory === "All" && visibleProducts.length > INITIAL_COUNT && (
+            <div className="mt-10 text-center">
               <button
-                key={page}    
                 type="button"
-                onClick={() => goToPage(page)}
-                aria-current={
-                  collectionPage === page ? "page" : undefined
-                }
-                className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-semibold transition sm:h-11 sm:w-11 ${
-                  collectionPage === page
-                    ? "border-[#2d1b2e] bg-[#2d1b2e] text-white"
-                    : "border-[#d9c7bb] bg-white hover:border-[#d85c7a] hover:text-[#d85c7a]"
-                }`}
+                onClick={() => {
+                  setShowAll((v) => !v);
+                  if (showAll)
+                    document.getElementById("shop")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className="rounded-full border border-[#2d1b2e] px-8 py-3 text-sm font-semibold transition hover:bg-[#2d1b2e] hover:text-white"
               >
-                {page}
+                {showAll ? "Show less" : `View all ${visibleProducts.length} candles`}
               </button>
-            ))}
-          </div>
-
-          <p className="mt-3 text-center text-[11px] text-[#8c6b5d] sm:text-xs">
-            Page {collectionPage} of {Math.ceil(products.length / 4)} ·
-Showing candles{" "}
-{(collectionPage - 1) * 4 + 1}–
-{Math.min(collectionPage * 4, products.length)}
-          </p>
+            </div>
+          )}
         </div>
       </section>
 
